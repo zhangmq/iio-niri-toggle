@@ -115,7 +115,7 @@ _daemon_start_iio() {
 }
 
 _daemon_apply_lock() {
-    local auto monitor transform
+    local auto monitor
     auto=$(read_json_field "$STATE_FILE" auto_rotate)
 
     monitor=$(read_json_field "$STATE_FILE" monitor)
@@ -127,18 +127,18 @@ _daemon_apply_lock() {
     if [ "$auto" = "true" ]; then
         [ -n "$_IIO_PID" ] && [ -S "$_IIO_SOCK" ] && \
             iio-niri -s "$_IIO_SOCK" msg lock-rotation false 2>/dev/null || true
-        
         echo "$NAME: auto-rotate on $monitor"
     else
+        # Capture current orientation so it persists across sessions
+        local transform
         transform=$(read_json_field "$STATE_FILE" locked_transform)
         if [ "$transform" = "null" ] || [ -z "$transform" ]; then
             transform=$(_iio_current_transform 2>/dev/null || echo "normal")
             write_state False "$transform" "$monitor"
         fi
-        niri msg output "$monitor" transform "$transform" 2>/dev/null || true
         [ -n "$_IIO_PID" ] && [ -S "$_IIO_SOCK" ] && \
             iio-niri -s "$_IIO_SOCK" msg lock-rotation true 2>/dev/null || true
-        echo "$NAME: locked $monitor to $transform"
+        echo "$NAME: rotation locked on $monitor"
     fi
 }
 
@@ -149,6 +149,20 @@ _daemon_start_iio_and_apply() {
         monitor=$(detect_monitor 2>/dev/null || true)
         [ -z "$monitor" ] && monitor="eDP-1"
     fi
+
+    # Locked: apply transform to niri BEFORE starting iio-niri
+    # so the screen shows correct orientation immediately
+    local auto transform
+    auto=$(read_json_field "$STATE_FILE" auto_rotate)
+    if [ "$auto" = "false" ]; then
+        transform=$(read_json_field "$STATE_FILE" locked_transform)
+        if [ "$transform" = "null" ] || [ -z "$transform" ]; then
+            transform=$(_iio_current_transform 2>/dev/null || echo "normal")
+            write_state False "$transform" "$monitor"
+        fi
+        niri msg output "$monitor" transform "$transform" 2>/dev/null || true
+    fi
+
     if [ -z "${_IIO_PID:-}" ] || ! kill -0 "$_IIO_PID" 2>/dev/null; then
         _daemon_start_iio "$monitor"
     fi
