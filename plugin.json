@@ -1,0 +1,10 @@
+{
+  "id": "iio-niri-toggle",
+  "name": "IIONiriToggle",
+  "description": "Screen rotation toggle (auto-rotate / lock)",
+  "version": "1.0.0",
+  "author": "zmq",
+  "type": "widget",
+  "component": "./IIONiriToggle.qml",
+  "icon": "screen_rotation"
+}

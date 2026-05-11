@@ -1,0 +1,13 @@
+[Unit]
+Description=IIO Niri Toggle Daemon
+After=iio-sensor-proxy.service
+Before=greetd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/iio-niri-toggle daemon
+Restart=on-failure
+StateDirectory=iio-niri-toggle
+
+[Install]
+WantedBy=multi-user.target
