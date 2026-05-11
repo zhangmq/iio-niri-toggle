@@ -9,8 +9,6 @@ readonly NAME="iio-niri-toggle"
 STATE_DIR="${STATE_DIR:-/var/lib/iio-niri-toggle}"
 STATE_FILE="$STATE_DIR/state.json"
 IPC_SOCK="/var/run/iio-niri-toggle.sock"
-_INOTIFY_AVAILABLE=false
-command -v inotifywait &>/dev/null && _INOTIFY_AVAILABLE=true
 
 die() { echo "$NAME: $*" >&2; exit 1; }
 warn() { echo "$NAME: $*" >&2; }
@@ -156,6 +154,9 @@ _daemon_start_iio_and_apply() {
     fi
 
     if [ -z "${_IIO_PID:-}" ] || ! kill -0 "$_IIO_PID" 2>/dev/null; then
+        # Brief delay when restarting after a session transition,
+        # letting D-Bus clean up the old iio-niri's connection.
+        [ -n "${_IIO_PID:-}" ] && sleep 2
         _daemon_start_iio "$monitor"
     fi
     _daemon_apply_lock
@@ -187,19 +188,7 @@ _wait_for_sock() {
     while true; do
         _found_sock=$(find /run/user/ -maxdepth 3 -name "niri*.sock" -type s 2>/dev/null | head -1) || true
         [ -n "$_found_sock" ] && return 0
-        if $_INOTIFY_AVAILABLE; then
-            local new_dir
-            new_dir=$(inotifywait -q -t 1 -e create /run/user/ 2>/dev/null --format '%f')
-            if [ -n "$new_dir" ] && [ -d "/run/user/$new_dir" ]; then
-                _found_sock=$(find "/run/user/$new_dir/" -maxdepth 1 -name "niri*.sock" -type s 2>/dev/null | head -1)
-                [ -n "$_found_sock" ] && return 0
-                local created
-                created=$(inotifywait -q -t 30 -e create "/run/user/$new_dir/" 2>/dev/null --format '%f')
-                [[ "$created" == niri*.sock ]] && { _found_sock="/run/user/$new_dir/$created"; return 0; }
-            fi
-        else
-            sleep 2
-        fi
+        sleep 1
     done
 }
 
@@ -356,9 +345,9 @@ cmd_daemon() {
         echo "$NAME: niri active at $NIRI_SOCKET"
         _daemon_start_iio_and_apply
 
-        # Phase 2: monitor (state changes + session end detection)
+        # Phase 2: monitor until niri exits
         while _niri_alive; do
-            inotifywait -q -t 30 -e close_write "$STATE_FILE" \
+            inotifywait -q -e close_write "$STATE_FILE" \
                 -e delete_self "$NIRI_SOCKET" &>/dev/null
             local rc=$?
             if [ $rc -eq 0 ]; then
@@ -366,12 +355,11 @@ cmd_daemon() {
                 _daemon_apply_lock
             fi
 
-            if [ -n "${_IIO_PID:-}" ]; then
-                if ! kill -0 "$_IIO_PID" 2>/dev/null; then
-                    wait "$_IIO_PID" 2>/dev/null || true
-                    echo "$NAME: iio-niri exited, re-starting"
-                    _daemon_start_iio_and_apply
-                fi
+            # Check iio-niri health after every wakeup
+            if [ -n "${_IIO_PID:-}" ] && ! kill -0 "$_IIO_PID" 2>/dev/null; then
+                wait "$_IIO_PID" 2>/dev/null || true
+                echo "$NAME: iio-niri exited, re-starting"
+                _daemon_start_iio_and_apply
             fi
         done
 
