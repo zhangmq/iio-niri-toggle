@@ -96,6 +96,29 @@ except:
 " 2>/dev/null
 }
 
+# Query current accelerometer orientation from iio-sensor-proxy via D-Bus.
+# Used to pre-set the display transform in auto-rotate mode before iio-niri
+# starts, eliminating the delay when entering a new session.
+_pre_set_sensor_transform() {
+    local monitor="$1"
+    local orient
+    orient=$(busctl get-property --system net.hadess.SensorProxy \
+        /net/hadess/SensorProxy net.hadess.SensorProxy \
+        AccelerometerOrientation 2>/dev/null | awk -F'"' '{print $2}') || return
+    [ -z "$orient" ] && return
+
+    local tr
+    case "$orient" in
+        normal)    tr="normal" ;;
+        bottom-up) tr="180" ;;
+        left-up)   tr="90" ;;
+        right-up)  tr="270" ;;
+        *)         return ;;
+    esac
+    niri msg output "$monitor" transform "$tr" 2>/dev/null || true
+    echo "$NAME: pre-set $monitor to $tr (sensor: $orient)"
+}
+
 # ── daemon internals ────────────────────────────────────────────────────────
 
 _daemon_start_iio() {
@@ -150,8 +173,8 @@ _daemon_start_iio_and_apply() {
         [ -z "$monitor" ] && monitor="eDP-1"
     fi
 
-    # Locked: apply transform to niri BEFORE starting iio-niri
-    # so the screen shows correct orientation immediately
+    # Pre-set transform BEFORE starting iio-niri, so the screen shows
+    # correct orientation immediately (no wait for sensor data).
     local auto transform
     auto=$(read_json_field "$STATE_FILE" auto_rotate)
     if [ "$auto" = "false" ]; then
@@ -161,6 +184,8 @@ _daemon_start_iio_and_apply() {
             write_state False "$transform" "$monitor"
         fi
         niri msg output "$monitor" transform "$transform" 2>/dev/null || true
+    else
+        _pre_set_sensor_transform "$monitor"
     fi
 
     if [ -z "${_IIO_PID:-}" ] || ! kill -0 "$_IIO_PID" 2>/dev/null; then
