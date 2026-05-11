@@ -72,14 +72,6 @@ with open('$STATE_FILE', 'w') as f:
 _IIO_SOCK=""
 _IIO_PID=""
 
-_orientation_to_transform() {
-    case "$1" in
-        normal|bottom-up|left-up|right-up) echo "$1" ;;
-        180|90|270) echo "$1" ;;
-        *) echo "normal" ;;
-    esac
-}
-
 # Query current output transform from niri directly (more reliable)
 _iio_current_transform() {
     niri msg --json outputs 2>/dev/null | python3 -c "
@@ -94,18 +86,6 @@ try:
 except:
     sys.exit(1)
 " 2>/dev/null
-}
-
-# Pre-set display transform using the last-known transform saved when the
-# previous session ended.  This avoids depending on iio-sensor-proxy D-Bus
-# timing and bypasses iio-niri's initial normal-state glitch on new sessions.
-_pre_set_sensor_transform() {
-    local monitor="$1"
-    local tr
-    tr=$(read_json_field "$STATE_FILE" last_transform)
-    [ "$tr" = "null" ] || [ -z "$tr" ] && return
-    niri msg output "$monitor" transform "$tr" 2>/dev/null || true
-    echo "$NAME: pre-set $monitor to $tr (last transform)"
 }
 
 # ── daemon internals ────────────────────────────────────────────────────────
@@ -173,8 +153,6 @@ _daemon_start_iio_and_apply() {
             write_state False "$transform" "$monitor"
         fi
         niri msg output "$monitor" transform "$transform" 2>/dev/null || true
-    else
-        _pre_set_sensor_transform "$monitor"
     fi
 
     if [ -z "${_IIO_PID:-}" ] || ! kill -0 "$_IIO_PID" 2>/dev/null; then
@@ -378,15 +356,16 @@ cmd_daemon() {
         echo "$NAME: niri active at $NIRI_SOCKET"
         _daemon_start_iio_and_apply
 
-        # Phase 2: monitor
+        # Phase 2: monitor (state changes + session end detection)
         while _niri_alive; do
-            inotifywait -q -t 30 -e close_write "$STATE_FILE" &>/dev/null
+            inotifywait -q -t 30 -e close_write "$STATE_FILE" \
+                -e delete_self "$NIRI_SOCKET" &>/dev/null
             local rc=$?
             if [ $rc -eq 0 ]; then
                 echo "$NAME: state changed, updating rotation"
                 _daemon_apply_lock
-                continue
             fi
+
             if [ -n "${_IIO_PID:-}" ]; then
                 if ! kill -0 "$_IIO_PID" 2>/dev/null; then
                     wait "$_IIO_PID" 2>/dev/null || true
@@ -396,22 +375,9 @@ cmd_daemon() {
             fi
         done
 
-        # Save last-known transform so the next session can pre-set it
-        local _last_tr
-        _last_tr=$(_iio_current_transform 2>/dev/null || echo "normal")
-        python3 -c "
-import json
-with open('$STATE_FILE') as f:
-    d = json.load(f)
-d['last_transform'] = '$_last_tr'
-with open('$STATE_FILE', 'w') as f:
-    json.dump(d, f)
-    f.write(chr(10))
-" 2>/dev/null || true
-
         _daemon_kill_iio
         unset NIRI_SOCKET
-        echo "$NAME: niri disconnected ($_last_tr saved), awaiting next session..."
+        echo "$NAME: niri disconnected, awaiting next session..."
     done
 }
 
