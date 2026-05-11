@@ -96,27 +96,16 @@ except:
 " 2>/dev/null
 }
 
-# Query current accelerometer orientation from iio-sensor-proxy via D-Bus.
-# Used to pre-set the display transform in auto-rotate mode before iio-niri
-# starts, eliminating the delay when entering a new session.
+# Pre-set display transform using the last-known transform saved when the
+# previous session ended.  This avoids depending on iio-sensor-proxy D-Bus
+# timing and bypasses iio-niri's initial normal-state glitch on new sessions.
 _pre_set_sensor_transform() {
     local monitor="$1"
-    local orient
-    orient=$(busctl get-property --system net.hadess.SensorProxy \
-        /net/hadess/SensorProxy net.hadess.SensorProxy \
-        AccelerometerOrientation 2>/dev/null | awk -F'"' '{print $2}') || return
-    [ -z "$orient" ] && return
-
     local tr
-    case "$orient" in
-        normal)    tr="normal" ;;
-        bottom-up) tr="180" ;;
-        left-up)   tr="90" ;;
-        right-up)  tr="270" ;;
-        *)         return ;;
-    esac
+    tr=$(read_json_field "$STATE_FILE" last_transform)
+    [ "$tr" = "null" ] || [ -z "$tr" ] && return
     niri msg output "$monitor" transform "$tr" 2>/dev/null || true
-    echo "$NAME: pre-set $monitor to $tr (sensor: $orient)"
+    echo "$NAME: pre-set $monitor to $tr (last transform)"
 }
 
 # ── daemon internals ────────────────────────────────────────────────────────
@@ -407,9 +396,22 @@ cmd_daemon() {
             fi
         done
 
+        # Save last-known transform so the next session can pre-set it
+        local _last_tr
+        _last_tr=$(_iio_current_transform 2>/dev/null || echo "normal")
+        python3 -c "
+import json
+with open('$STATE_FILE') as f:
+    d = json.load(f)
+d['last_transform'] = '$_last_tr'
+with open('$STATE_FILE', 'w') as f:
+    json.dump(d, f)
+    f.write(chr(10))
+" 2>/dev/null || true
+
         _daemon_kill_iio
         unset NIRI_SOCKET
-        echo "$NAME: niri disconnected, awaiting next session..."
+        echo "$NAME: niri disconnected ($_last_tr saved), awaiting next session..."
     done
 }
 
