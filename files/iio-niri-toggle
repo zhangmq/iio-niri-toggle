@@ -67,8 +67,8 @@ with open('$STATE_FILE', 'w') as f:
 
 # ── orientation helpers (daemon-internal) ───────────────────────────────────
 
-_IIO_SOCK=""
-_IIO_PID=""
+_LISTENER_PID=""
+_IPC_PID=""
 
 # Query current output transform from niri directly (more reliable)
 _iio_current_transform() {
@@ -88,20 +88,10 @@ except:
 
 # ── daemon internals ────────────────────────────────────────────────────────
 
-_daemon_start_iio() {
-    local monitor="$1"
-    _IIO_SOCK="${XDG_RUNTIME_DIR}/iio-niri.sock"
-    rm -f "$_IIO_SOCK" 2>/dev/null || true
-    iio-niri -s "$_IIO_SOCK" listen -m "$monitor" &
-    _IIO_PID=$!
+_daemon_start_listener() {
+    /usr/local/bin/iio-niri-listener &
+    _LISTENER_PID=$!
     disown 2>/dev/null || true
-    local i=0
-    while [ $i -lt 30 ]; do
-        [ -S "$_IIO_SOCK" ] && return 0
-        sleep 0.1
-        i=$((i + 1))
-    done
-    return 1
 }
 
 _daemon_apply_lock() {
@@ -115,24 +105,20 @@ _daemon_apply_lock() {
     fi
 
     if [ "$auto" = "true" ]; then
-        [ -n "$_IIO_PID" ] && [ -S "$_IIO_SOCK" ] && \
-            iio-niri -s "$_IIO_SOCK" msg lock-rotation false 2>/dev/null || true
         echo "$NAME: auto-rotate on $monitor"
     else
-        # Capture current orientation so it persists across sessions
         local transform
         transform=$(read_json_field "$STATE_FILE" locked_transform)
         if [ "$transform" = "null" ] || [ -z "$transform" ]; then
             transform=$(_iio_current_transform 2>/dev/null || echo "normal")
             write_state False "$transform" "$monitor"
         fi
-        [ -n "$_IIO_PID" ] && [ -S "$_IIO_SOCK" ] && \
-            iio-niri -s "$_IIO_SOCK" msg lock-rotation true 2>/dev/null || true
-        echo "$NAME: rotation locked on $monitor"
+        niri msg output "$monitor" transform "$transform" 2>/dev/null || true
+        echo "$NAME: rotation locked on $monitor ($transform)"
     fi
 }
 
-_daemon_start_iio_and_apply() {
+_daemon_apply_session() {
     local monitor
     monitor=$(read_json_field "$STATE_FILE" monitor)
     if [ "$monitor" = "null" ] || [ -z "$monitor" ]; then
@@ -140,8 +126,7 @@ _daemon_start_iio_and_apply() {
         [ -z "$monitor" ] && monitor="eDP-1"
     fi
 
-    # Pre-set transform BEFORE starting iio-niri, so the screen shows
-    # correct orientation immediately (no wait for sensor data).
+    # Locked: pre-set transform before the persistent listener picks it up
     local auto transform
     auto=$(read_json_field "$STATE_FILE" auto_rotate)
     if [ "$auto" = "false" ]; then
@@ -152,13 +137,6 @@ _daemon_start_iio_and_apply() {
         fi
         niri msg output "$monitor" transform "$transform" 2>/dev/null || true
     fi
-
-    if [ -z "${_IIO_PID:-}" ] || ! kill -0 "$_IIO_PID" 2>/dev/null; then
-        # Brief delay when restarting after a session transition,
-        # letting D-Bus clean up the old iio-niri's connection.
-        [ -n "${_IIO_PID:-}" ] && sleep 2
-        _daemon_start_iio "$monitor"
-    fi
     _daemon_apply_lock
 }
 
@@ -166,12 +144,10 @@ _niri_alive() {
     [ -n "${NIRI_SOCKET:-}" ] && [ -S "$NIRI_SOCKET" ] && niri msg --json outputs &>/dev/null
 }
 
-_daemon_kill_iio() {
-    [ -n "${_IIO_PID:-}" ] && kill "$_IIO_PID" 2>/dev/null || true
-    wait "$_IIO_PID" 2>/dev/null || true
-    _IIO_PID=""
-    rm -f "$_IIO_SOCK" 2>/dev/null || true
-    _IIO_SOCK=""
+_daemon_kill_listener() {
+    [ -n "${_LISTENER_PID:-}" ] && kill "$_LISTENER_PID" 2>/dev/null || true
+    wait "$_LISTENER_PID" 2>/dev/null || true
+    _LISTENER_PID=""
 }
 
 _export_session_env() {
@@ -188,7 +164,29 @@ _wait_for_sock() {
     while true; do
         _found_sock=$(find /run/user/ -maxdepth 3 -name "niri*.sock" -type s 2>/dev/null | head -1) || true
         [ -n "$_found_sock" ] && return 0
-        sleep 1
+
+        # Watch /run/user/ for new dirs AND all existing user dirs for new sockets
+        local watch=("/run/user")
+        local d
+        for d in /run/user/*/; do
+            [ -d "$d" ] && watch+=("${d%/}")
+        done
+
+        local event
+        event=$(inotifywait -q -e create "${watch[@]}" 2>/dev/null --format '%w%f') || continue
+
+        local name
+        name=$(basename "$event")
+        if [[ "$name" == niri*.sock ]]; then
+            _found_sock="$event"
+            return 0
+        fi
+
+        if [ -d "$event" ]; then
+            local created
+            created=$(inotifywait -q -e create "$event" 2>/dev/null --format '%f')
+            [[ "$created" == niri*.sock ]] && { _found_sock="$event/$created"; return 0; }
+        fi
     done
 }
 
@@ -269,14 +267,14 @@ while True:
 " &
     _IPC_PID=$!
     disown 2>/dev/null || true
-    # Wait for socket to appear
-    local i=0
-    while [ $i -lt 20 ]; do
-        [ -S "$IPC_SOCK" ] && return 0
-        sleep 0.1
-        i=$((i + 1))
+    # Wait for socket to appear (event-driven)
+    local _ipc_dir _ipc_name
+    _ipc_dir=$(dirname "$IPC_SOCK")
+    _ipc_name=$(basename "$IPC_SOCK")
+    until [ -S "$IPC_SOCK" ]; do
+        inotifywait -q -e create "$_ipc_dir" 2>/dev/null --format '%f' | grep -qxF "$_ipc_name"
     done
-    return 1
+    return 0
 }
 
 _daemon_kill_ipc() {
@@ -333,8 +331,15 @@ cmd_daemon() {
 
     echo "$NAME: daemon started"
 
+    # Start persistent sensor listener (lives across session transitions)
+    local _mon
+    _mon=$(read_json_field "$STATE_FILE" monitor)
+    [ "$_mon" = "null" ] || [ -z "$_mon" ] && _mon=$(detect_monitor 2>/dev/null || echo "eDP-1")
+    _daemon_start_listener "$_mon"
+
     while true; do
-        # Start IPC listener
+        # Clean up previous IPC process before starting new one
+        _daemon_kill_ipc
         _daemon_start_ipc
         echo "$NAME: IPC socket at $IPC_SOCK"
 
@@ -343,7 +348,7 @@ cmd_daemon() {
         export NIRI_SOCKET="$_found_sock"
         _export_session_env "$_found_sock"
         echo "$NAME: niri active at $NIRI_SOCKET"
-        _daemon_start_iio_and_apply
+        _daemon_apply_session
 
         # Phase 2: monitor until niri exits
         while _niri_alive; do
@@ -354,16 +359,8 @@ cmd_daemon() {
                 echo "$NAME: state changed, updating rotation"
                 _daemon_apply_lock
             fi
-
-            # Check iio-niri health after every wakeup
-            if [ -n "${_IIO_PID:-}" ] && ! kill -0 "$_IIO_PID" 2>/dev/null; then
-                wait "$_IIO_PID" 2>/dev/null || true
-                echo "$NAME: iio-niri exited, re-starting"
-                _daemon_start_iio_and_apply
-            fi
         done
 
-        _daemon_kill_iio
         unset NIRI_SOCKET
         echo "$NAME: niri disconnected, awaiting next session..."
     done

@@ -9,12 +9,15 @@ echo "=== iio-niri-toggle installer ==="
 echo "→ Installing /usr/local/bin/iio-niri-toggle"
 install -m 755 "$FILES_DIR/iio-niri-toggle" /usr/local/bin/iio-niri-toggle
 
+echo "→ Installing /usr/local/bin/iio-niri-listener"
+install -m 755 "$FILES_DIR/iio-niri-listener" /usr/local/bin/iio-niri-listener
+
 echo "→ Installing /etc/systemd/system/iio-niri-toggle.service"
 install -m 644 "$FILES_DIR/iio-niri-toggle.service" /etc/systemd/system/iio-niri-toggle.service
 
 echo "→ Enabling iio-niri-toggle.service"
 systemctl daemon-reload
 systemctl enable iio-niri-toggle.service
-systemctl start iio-niri-toggle.service || true
+systemctl restart iio-niri-toggle.service || true
 
 echo "=== Done ==="
