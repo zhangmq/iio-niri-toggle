@@ -27,8 +27,8 @@ Auto-detects the internal display (eDP/DSI/LVDS) via sysfs at startup. Exits wit
 ### Daemon
 
 ```bash
-cd iio-niri-toggle && cargo build --release
-sudo bash files/install.sh
+cargo build --release
+sudo bash deploy/install.sh
 ```
 
 ### DMS Widget (Optional)
@@ -71,6 +71,10 @@ Two modes:
 - **Locked** — transform fixed to persisted value; sensor changes ignored
 
 State is persisted to `/var/lib/iio-niri-toggle/state.json`. The apply block is read-only (never writes state.json).
+
+## Known Limitations
+
+- **DMS control center widget lazy-loading**: If only the control center widget is enabled (no DankBar pill), the QML plugin instance is not active until the control center is opened at least once. During this time, `iio-niri-toggle lock/unlock` CLI commands will work but the toast notification will not show. This is a DMS/Quickshell behavior — plugins without a bar pill are not instantiated until their control center slot is rendered.
 
 ## Collaboration
 
