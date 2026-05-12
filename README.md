@@ -42,7 +42,7 @@ Then add `iio-niri-toggle` to your DMS panel bar configuration.
 The widget appears in two places:
 
 - **DankBar** — click to toggle auto-rotate on/off
-- **Control Center** — open the control center, enter edit mode (long press or edit button), find "屏幕旋转" in the widget list, and add it to the grid. Click the tile to toggle.
+- **Control Center** — open the control center, click the edit button to enter edit mode, find "屏幕旋转" in the widget list, and add it to the grid. Click the tile to toggle.
 
 ## Usage
 
