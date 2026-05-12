@@ -36,12 +36,10 @@
 
 | Path | Description |
 |------|-------------|
-| files/iio-niri-toggle | Main daemon (bash) |
-| files/iio-niri-listener | Rust listener binary |
+| iio-niri-toggle/src/main.rs | Rust source (daemon + CLI + IPC) |
+| iio-niri-toggle/Cargo.toml | Rust project config |
 | files/iio-niri-toggle.service | systemd service |
 | files/install.sh | Install script |
-| listener/src/main.rs | Rust listener source |
-| listener/Cargo.toml | Rust project config |
 | plugin.json | QML plugin config |
 | IIONiriToggle.qml | QML panel |
 

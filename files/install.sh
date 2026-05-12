@@ -3,14 +3,17 @@
 set -euo pipefail
 
 FILES_DIR="$(cd "$(dirname "$0")" && pwd)"
+RELEASE_BIN="$FILES_DIR/../iio-niri-toggle/target/release/iio-niri-toggle"
 
 echo "=== iio-niri-toggle installer ==="
 
-echo "→ Building Rust binary"
-(cd "$FILES_DIR/../listener" && cargo build --release)
+if [ ! -f "$RELEASE_BIN" ]; then
+    echo "→ Binary not found, building first (run outside sudo if rustup is not root)"
+    (cd "$FILES_DIR/../iio-niri-toggle" && cargo build --release)
+fi
 
 echo "→ Installing /usr/local/bin/iio-niri-toggle"
-install -m 755 "$FILES_DIR/../listener/target/release/iio-niri-toggle" /usr/local/bin/iio-niri-toggle
+install -m 755 "$RELEASE_BIN" /usr/local/bin/iio-niri-toggle
 
 echo "→ Installing /etc/systemd/system/iio-niri-toggle.service"
 install -m 644 "$FILES_DIR/iio-niri-toggle.service" /etc/systemd/system/iio-niri-toggle.service
