@@ -62,7 +62,7 @@ fn write_state(auto: bool, locked: Option<&str>, monitor: &str) {
         "monitor": monitor,
     });
     if let Ok(s) = serde_json::to_string(&d) {
-        let _ = std::fs::write(STATE_FILE, s.as_bytes());
+        let _ = std::fs::write(STATE_FILE, format!("{}\n", s).as_bytes());
         let _ = std::fs::set_permissions(STATE_FILE, std::fs::Permissions::from_mode(0o644));
     }
 }
@@ -76,7 +76,7 @@ fn init_state() {
             "monitor": MONITOR,
         });
         if let Ok(s) = serde_json::to_string(&d) {
-            let _ = std::fs::write(STATE_FILE, s.as_bytes());
+            let _ = std::fs::write(STATE_FILE, format!("{}\n", s).as_bytes());
         }
     }
 }
