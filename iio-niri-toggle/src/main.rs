@@ -383,7 +383,6 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
                     cfg.locked_transform.clone()
                 };
                 if set_transform(&tr) {
-                    write_state(false, Some(&tr), MONITOR);
                     need_apply = false;
                 }
             }
