@@ -1,1 +1,3 @@
 listener/target/
+files/__pycache__/
+files/iio-niri-listener
