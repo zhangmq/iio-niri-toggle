@@ -1,94 +1,94 @@
-# iio-niri-toggle — Project Status
+# iio-niri-toggle — 项目状态
 
-## Architecture
+## 架构
 
 ```
-┌─ iio-niri-toggle (single Rust binary) ──────────────────────┐
-│                                                              │
-│  poll(inotify_fd, ipc_fd, 200ms)                             │
-│    ├─ inotify (state.json) → need_apply = true               │
-│    ├─ IPC (lock/unlock/status) → write_state + need_apply    │
-│    ├─ D-Bus (PropertiesChanged) → update cached_orient       │
-│    ├─ socket change (glob) → need_apply = true               │
-│    ├─ 30s health check (auto-rotate only) → update orient    │
-│    └─ apply block (pure, no side effects)                     │
-│                                                              │
-│  D-Bus connection: ClaimAccelerometer, subscribe to signals   │
-│  State: /var/lib/iio-niri-toggle/state.json                  │
-│  IPC: Unix socket /var/run/iio-niri-toggle.sock              │
-│  CLI: iio-niri-toggle {daemon|send|lock|unlock|status}       │
-└──────────────────────────────────────────────────────────────┘
+┌─ iio-niri-toggle（单一 Rust 二进制）──────────────────────────┐
+│                                                               │
+│  poll(inotify_fd, ipc_fd, 200ms)                              │
+│    ├─ inotify（state.json 变更）→ need_apply = true           │
+│    ├─ IPC（lock/unlock/status）→ write_state + need_apply     │
+│    ├─ D-Bus（PropertiesChanged）→ 更新缓存方向                │
+│    ├─ socket 变化（glob）→ need_apply = true                  │
+│    ├─ 30s 健康检查（仅自动旋转）→ 更新方向缓存               │
+│    └─ apply 块（纯应用，无副作用）                            │
+│                                                               │
+│  D-Bus 连接: ClaimAccelerometer, 订阅信号                     │
+│  状态文件: /var/lib/iio-niri-toggle/state.json                │
+│  IPC: Unix socket /var/run/iio-niri-toggle.sock               │
+│  CLI: iio-niri-toggle {daemon|send|lock|unlock|status}        │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-## Functional Specification
+## 功能规格
 
-### Two Modes
+### 两种模式
 
-#### Auto-rotate mode
+#### 自动旋转模式
 
-| Dimension | Rule |
-|-----------|------|
-| Flag | `auto_rotate = true`, `locked_transform = null` |
-| Transform source | Live sensor orientation via D-Bus `AccelerometerOrientation` |
-| Sensor dependency | Strong — every transform is driven by sensor signal |
-| state.json dependency | None — transform fully derived from sensor |
+| 维度 | 规则 |
+|------|------|
+| 状态标记 | `auto_rotate = true`, `locked_transform = null` |
+| 变换来源 | 实时传感器方向（通过 D-Bus `AccelerometerOrientation`） |
+| 传感器依赖 | 强依赖——每次变换均由传感器信号驱动 |
+| state.json 依赖 | 无——变换完全由传感器推导 |
 
-| Event | Action | Write state.json |
-|-------|--------|:---:|
-| D-Bus `PropertiesChanged` | Update cached orient → apply | No |
-| New niri socket (session switch) | Apply cached orient | No |
-| IPC `unlock` command | Write `auto_rotate=true, locked_transform=null` → apply cached orient | Yes (one-shot) |
-| 30s health check (signal loss safety net) | `requery_orientation` → apply if changed | No |
+| 事件 | 行为 | 是否写 state.json |
+|------|------|:---:|
+| D-Bus `PropertiesChanged` | 更新缓存方向 → apply | 否 |
+| 新 niri socket（session 切换） | apply 当前缓存方向 | 否 |
+| IPC `unlock` 命令 | 写 `auto_rotate=true, locked_transform=null` → apply 缓存方向 | 是（一次性） |
+| 30s 健康检查（信号丢失兜底） | `requery_orientation` → 有变化则 apply | 否 |
 
-#### Locked mode
+#### 锁定模式
 
-| Dimension | Rule |
-|-----------|------|
-| Flag | `auto_rotate = false`, `locked_transform` = non-empty |
-| Transform source | `locked_transform` from state.json (persisted fixed value) |
-| Sensor dependency | **None** — sensor signals are ignored for apply |
-| state.json dependency | Required — `locked_transform` must survive session switches |
+| 维度 | 规则 |
+|------|------|
+| 状态标记 | `auto_rotate = false`, `locked_transform` ≠ 空 |
+| 变换来源 | state.json 中的 `locked_transform`（持久化固定值） |
+| 传感器依赖 | **无依赖**——传感器信号在锁定模式下被忽略 |
+| state.json 依赖 | 依赖——`locked_transform` 必须跨 session 持久化 |
 
-| Event | Action | Write state.json |
-|-------|--------|:---:|
-| IPC `lock` command | Capture current niri transform → write `locked_transform` → apply | Yes (one-shot) |
-| New niri socket (session switch) | Read `locked_transform` → apply | No |
-| Sensor change | **Ignored** | No |
-| Health check | **Skipped** (sensor irrelevant in locked mode) | No |
+| 事件 | 行为 | 是否写 state.json |
+|------|------|:---:|
+| IPC `lock` 命令 | 捕获当前 niri 变换 → 写 `locked_transform` → apply | 是（一次性） |
+| 新 niri socket（session 切换） | 读 `locked_transform` → apply | 否 |
+| 传感器变化 | **忽略** | 否 |
+| 健康检查 | **跳过**（锁定模式无需关注传感器） | 否 |
 
-### state.json Write Rules
+### state.json 写入规则
 
-**Only written on these triggers, never elsewhere:**
+**仅在下列时机写入，其余任何时候不写：**
 
-| Trigger | Written content |
-|---------|----------------|
-| First boot (no state.json) | `{"auto_rotate": true, "locked_transform": null, "monitor": "eDP-1"}` |
-| IPC `lock` | `{"auto_rotate": false, "locked_transform": "<current transform>", "monitor": "eDP-1"}` |
+| 触发 | 写入内容 |
+|------|----------|
+| 首次启动（无 state.json） | `{"auto_rotate": true, "locked_transform": null, "monitor": "eDP-1"}` |
+| IPC `lock` | `{"auto_rotate": false, "locked_transform": "<当前变换>", "monitor": "eDP-1"}` |
 | IPC `unlock` | `{"auto_rotate": true, "locked_transform": null, "monitor": "eDP-1"}` |
 
-**Forbidden:** apply block must NOT write state.json.
+**禁止：** apply 块不得写 state.json。
 
-### Key Constraints
+### 关键设计约束
 
-1. **Apply block is pure**: no write_state, no D-Bus calls, no events.
-2. **Locked mode ignores sensor**: D-Bus signals still update `cached_orient` but do NOT set `need_apply`.
-3. **Socket retry**: apply fails + socket exists → keep `need_apply` for retry; apply fails + no socket → stop.
-4. **IPC is synchronous**: lock/unlock writes state.json in the IPC handler; apply follows on next poll iteration.
+1. **apply 块纯应用**：不写 state.json、不调 D-Bus、不触发其他事件
+2. **锁定模式忽略传感器**：D-Bus 信号照收（更新缓存方向），但不设 `need_apply`
+3. **socket 重试**：apply 失败 + socket 存在 → 保留 `need_apply` 下轮重试；apply 失败 + 无 socket → 放弃
+4. **IPC 同步处理**：lock/unlock 在 IPC 处理器内完成 `write_state`；apply 随后在下轮 poll 迭代处理
 
-### Known Issues
+### 已知问题
 
-- `inotify` on `/run/user/` only watches direct children. Socket creation in existing user directories (same-UID greetd) relies on 200ms poll timeout as fallback. Latency ≤200ms.
+- `/run/user/` 的 inotify 仅监视直接子条目。socket 在已有用户目录内创建（同 UID greetd）时，依赖 200ms poll 超时作为兜底检测，延迟 ≤200ms。
 
-### Key Paths
+### 关键路径
 
-| Variable | Path |
-|----------|------|
+| 变量 | 路径 |
+|------|------|
 | state.json | `/var/lib/iio-niri-toggle/state.json` |
 | IPC socket | `/var/run/iio-niri-toggle.sock` |
-| Binary | `/usr/local/bin/iio-niri-toggle` |
-| Service | `/etc/systemd/system/iio-niri-toggle.service` |
+| 二进制 | `/usr/local/bin/iio-niri-toggle` |
+| 服务 | `/etc/systemd/system/iio-niri-toggle.service` |
 
-### state.json Format
+### state.json 格式
 
 ```json
 {
@@ -98,5 +98,5 @@
 }
 ```
 
-- `auto_rotate`: true = auto-rotate mode, false = locked mode
+- `auto_rotate`: true = 自动旋转模式，false = 锁定模式
 - `locked_transform`: `"normal"` | `"90"` | `"180"` | `"270"` | `null`
