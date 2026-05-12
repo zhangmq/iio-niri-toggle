@@ -23,7 +23,24 @@ const SENSOR_PATH: &str = "/net/hadess/SensorProxy";
 const STATE_DIR: &str = "/var/lib/iio-niri-toggle";
 const STATE_FILE: &str = "/var/lib/iio-niri-toggle/state.json";
 const IPC_SOCK: &str = "/var/run/iio-niri-toggle.sock";
-const MONITOR: &str = "eDP-1";
+
+fn monitor() -> &'static str {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| detect_internal_monitor().unwrap())
+}
+
+fn detect_internal_monitor() -> Option<String> {
+    let entry = glob("/sys/class/drm/card*-*/status")
+        .ok()?
+        .filter_map(|e| e.ok())
+        .find(|p| std::fs::read_to_string(p).ok().map_or(false, |s| s.trim() == "connected"))?;
+    let name = entry.parent()?.file_name()?.to_string_lossy().to_string();
+    let connector_type = name.rsplit('-').nth(1)?;
+    match connector_type {
+        "eDP" | "DSI" | "LVDS" => Some(name.splitn(2, '-').nth(1)?.to_string()),
+        _ => None,
+    }
+}
 
 // ── state.json ──────────────────────────────────────────────────────────────
 
@@ -73,7 +90,7 @@ fn init_state() {
         let d = serde_json::json!({
             "auto_rotate": true,
             "locked_transform": null,
-            "monitor": MONITOR,
+            "monitor": monitor(),
         });
         if let Ok(s) = serde_json::to_string(&d) {
             let _ = std::fs::write(STATE_FILE, format!("{}\n", s).as_bytes());
@@ -101,7 +118,7 @@ fn current_transform() -> Option<String> {
         .ok()?;
     if !output.status.success() { return None; }
     let v: Value = serde_json::from_slice(&output.stdout).ok()?;
-    let t = v.get(MONITOR)?
+    let t = v.get(monitor())?
         .get("logical")?
         .get("transform")?
         .as_str()?;
@@ -114,12 +131,12 @@ fn set_transform(tr: &str) -> bool {
         None => return false,
     };
     let output = Command::new("niri")
-        .args(["msg", "output", MONITOR, "transform", tr])
+        .args(["msg", "output", monitor(), "transform", tr])
         .env("NIRI_SOCKET", &sock)
         .output();
     match output {
         Ok(o) if o.status.success() => {
-            eprintln!("listener: applied {} -> {}", MONITOR, tr);
+            eprintln!("listener: applied {} -> {}", monitor(), tr);
             true
         }
         Ok(o) => {
@@ -230,11 +247,11 @@ fn handle_ipc_client(mut stream: UnixStream) {
     let resp = match cmd {
         "lock" => {
             let locked = current_transform().unwrap_or_else(|| "normal".to_string());
-            write_state(false, Some(&locked), MONITOR);
+            write_state(false, Some(&locked), monitor());
             serde_json::json!({"ok": true, "auto_rotate": false})
         }
         "unlock" => {
-            write_state(true, None, MONITOR);
+            write_state(true, None, monitor());
             serde_json::json!({"ok": true, "auto_rotate": true})
         }
         "status" => {
@@ -248,7 +265,7 @@ fn handle_ipc_client(mut stream: UnixStream) {
                     } else {
                         Value::String(cfg.locked_transform)
                     },
-                    "monitor": MONITOR,
+                    "monitor": monitor(),
                 }
             })
         }
@@ -260,8 +277,11 @@ fn handle_ipc_client(mut stream: UnixStream) {
 // ── daemon ──────────────────────────────────────────────────────────────────
 
 fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
+    if detect_internal_monitor().is_none() {
+        return Err("no internal display detected, aborting".into());
+    }
     init_state();
-    eprintln!("listener: daemon started");
+    eprintln!("listener: daemon started, monitor: {}", monitor());
 
     // D-Bus (blocking once at startup)
     let (conn, initial_orient) = setup_dbus()?;

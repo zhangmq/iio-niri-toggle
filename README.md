@@ -8,7 +8,7 @@ Designed for x86 2-in-1 tablets running niri + [DankMaterialShell](https://dankl
 
 Initially based on [iio-niri](https://github.com/Zhaith-Izaliel/iio-niri), but later rewritten as a standalone single-binary daemon for practical reasons: session switch handling, greetd compatibility, persistent state across sessions, and simplified deployment.
 
-Currently targets the built-in display only. Future support for auto-detecting the internal display is possible but not planned.
+Auto-detects the internal display (eDP/DSI/LVDS) via sysfs at startup. Exits with an error if no built-in display is found.
 
 ## Dependencies
 

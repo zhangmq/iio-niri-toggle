@@ -8,7 +8,7 @@
 
 最初参考 [iio-niri](https://github.com/Zhaith-Izaliel/iio-niri) 开发，后因会话切换处理、greetd 兼容性、跨 session 状态持久化等实际需求，自行实现为单一二进制守护进程。
 
-当前仅适配内置屏幕。未来有能力自动识别单一内屏后可扩大支持范围。
+启动时通过 sysfs 自动检测内置屏幕（eDP/DSI/LVDS）。未检测到内屏时退出报错。
 
 ## 环境依赖
 
