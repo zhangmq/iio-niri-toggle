@@ -156,7 +156,6 @@ fn setup_dbus() -> Result<(Connection, String), Box<dyn std::error::Error>> {
 
     conn.process(Duration::from_millis(0))?;
     let orient: String = proxy.get(SENSOR_SRV, "AccelerometerOrientation")?;
-    eprintln!("listener: initial orientation: {}", orient);
     Ok((conn, orient))
 }
 
@@ -264,6 +263,10 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
     init_state();
     eprintln!("listener: daemon started");
 
+    // D-Bus (blocking once at startup)
+    let (conn, initial_orient) = setup_dbus()?;
+    eprintln!("listener: initial orientation: {}", initial_orient);
+
     // inotify
     let mut inotify = setup_inotify()?;
     let mut inotify_buf = [0u8; 4096];
@@ -275,29 +278,22 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
     let inotify_fd = inotify.as_raw_fd();
     let ipc_fd = ipc_listener.as_raw_fd();
 
-    // ── D-Bus (non-fatal: daemon works without sensor) ─────────
-    let mut dbus_conn: Option<Connection> = None;
-    let mut cached_orient = String::from("normal");
+    // Orientation: only re-queried when PropertiesChanged signal arrives.
     let orient_pending = Arc::new(AtomicBool::new(false));
+    let mut cached_orient = initial_orient;
 
-    match setup_dbus() {
-        Ok((conn, orient)) => {
-            cached_orient = orient;
-            let pending = Arc::clone(&orient_pending);
-            let rule = MatchRule::new_signal("org.freedesktop.DBus.Properties", "PropertiesChanged")
-                .with_sender(SENSOR_SRV)
-                .with_path(SENSOR_PATH);
-            let _ = conn.add_match::<(), _>(rule, move |_: (), _conn: &Connection, msg: &Message| {
-                if let Some(_orient) = parse_orient_signal(msg) {
-                    pending.store(true, Ordering::SeqCst);
-                }
-                true
-            });
-            dbus_conn = Some(conn);
-        }
-        Err(e) => {
-            eprintln!("listener: no sensor ({}); locked mode only", e);
-        }
+    // Register D-Bus PropertiesChanged handler
+    {
+        let pending = Arc::clone(&orient_pending);
+        let rule = MatchRule::new_signal("org.freedesktop.DBus.Properties", "PropertiesChanged")
+            .with_sender(SENSOR_SRV)
+            .with_path(SENSOR_PATH);
+        conn.add_match::<(), _>(rule, move |_: (), _conn: &Connection, msg: &Message| {
+            if let Some(_orient) = parse_orient_signal(msg) {
+                pending.store(true, Ordering::SeqCst);
+            }
+            true
+        })?;
     }
 
     // Event loop: poll inotify + IPC fds, D-Bus via short-timeout fallback
@@ -335,19 +331,18 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        // ── D-Bus: process pending messages (if sensor available) ─
-        if let Some(ref conn) = dbus_conn {
-            let _ = conn.process(Duration::ZERO);
-            if orient_pending.swap(false, Ordering::SeqCst) {
-                match requery_orientation(conn) {
-                    Ok(orient) if orient != cached_orient => {
-                        eprintln!("listener: orientation: {} -> {}", cached_orient, orient);
-                        cached_orient = orient;
-                        need_apply = true;
-                    }
-                    Err(e) => eprintln!("listener: orientation query: {}", e),
-                    _ => {}
+        // ── D-Bus: process pending messages ───────────────────────
+        let _ = conn.process(Duration::ZERO);
+        let signal_hit = orient_pending.swap(false, Ordering::SeqCst);
+        if signal_hit {
+            match requery_orientation(&conn) {
+                Ok(orient) if orient != cached_orient => {
+                    eprintln!("listener: orientation: {} -> {}", cached_orient, orient);
+                    cached_orient = orient;
+                    need_apply = true;
                 }
+                Err(e) => eprintln!("listener: orientation query: {}", e),
+                _ => {}
             }
         }
 
@@ -359,17 +354,16 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // ── Periodic health: re-query orientation every 30s ───────
-        if let Some(ref conn) = dbus_conn {
-            if health.elapsed() >= Duration::from_secs(30) {
-                health = Instant::now();
-                match requery_orientation(conn) {
-                    Ok(orient) if orient != cached_orient => {
-                        eprintln!("listener: health check: {} -> {}", cached_orient, orient);
-                        cached_orient = orient;
-                        need_apply = true;
-                    }
-                    _ => {}
+        // (safety net if PropertiesChanged signals are missed)
+        if health.elapsed() >= Duration::from_secs(30) {
+            health = Instant::now();
+            match requery_orientation(&conn) {
+                Ok(orient) if orient != cached_orient => {
+                    eprintln!("listener: health check: {} -> {}", cached_orient, orient);
+                    cached_orient = orient;
+                    need_apply = true;
                 }
+                _ => {}
             }
         }
 
