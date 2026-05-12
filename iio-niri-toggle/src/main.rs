@@ -289,6 +289,7 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
     // Event loop: poll inotify + IPC fds, D-Bus via short-timeout fallback
     let mut sock_cache: Option<String> = None;
     let mut health = Instant::now();
+    let mut need_apply = true; // apply on first iteration regardless
     loop {
         let mut fds = [
             pollfd { fd: inotify_fd, events: POLLIN as i16, revents: 0 },
@@ -301,8 +302,6 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
             std::thread::sleep(Duration::from_millis(50));
             continue;
         }
-
-        let mut need_apply = false;
 
         // ── inotify ───────────────────────────────────────────────
         if ret > 0 && (fds[0].revents & POLLIN as i16) != 0 {
@@ -361,7 +360,13 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
         // ── Apply ─────────────────────────────────────────────────
         if need_apply {
             let cfg = read_config();
-            apply(&cfg, &cached_orient);
+            let tr = if cfg.auto_rotate { orientation_to_transform(&cached_orient) } else { &cfg.locked_transform };
+            if !tr.is_empty() && set_transform(tr) {
+                need_apply = false;
+            } else if sock_cache.is_none() {
+                need_apply = false; // no socket, stop retrying until one appears
+            }
+            // socket exists but apply failed (niri not ready): retry on next iteration
         }
     }
 }
