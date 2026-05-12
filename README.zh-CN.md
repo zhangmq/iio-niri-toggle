@@ -24,10 +24,20 @@
 
 ## 安装
 
+### 守护进程
+
 ```bash
 cd iio-niri-toggle && cargo build --release
 sudo bash files/install.sh
 ```
+
+### DMS 面板插件（可选）
+
+```bash
+ln -s "$PWD" ~/.config/DankMaterialShell/plugins/iio-niri-toggle
+```
+
+然后在 DMS 面板配置中添加 `iio-niri-toggle` 插件。
 
 QML 插件（`plugin.json` + `IIONiriToggle.qml`）提供面板按钮一键切换自动旋转。将项目目录放入 Quickshell 插件路径即可使用。
 

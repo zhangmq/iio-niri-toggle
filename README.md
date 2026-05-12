@@ -24,10 +24,20 @@ Currently targets the built-in display only. Future support for auto-detecting t
 
 ## Installation
 
+### Daemon
+
 ```bash
 cd iio-niri-toggle && cargo build --release
 sudo bash files/install.sh
 ```
+
+### DMS Panel Widget (Optional)
+
+```bash
+ln -s "$PWD" ~/.config/DankMaterialShell/plugins/iio-niri-toggle
+```
+
+Then add `iio-niri-toggle` to your DMS panel configuration.
 
 The QML plugin (`plugin.json` + `IIONiriToggle.qml`) provides a panel button to toggle auto-rotate on/off. Place the project directory under your Quickshell plugin path.
 
