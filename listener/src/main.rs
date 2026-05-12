@@ -390,7 +390,7 @@ fn cmd_send(command: &str) {
             if auto { "lock".to_string() } else { "unlock".to_string() }
         }
         _ => {
-            eprintln!("Usage: iio-niri-listener send <lock|unlock|status|toggle>");
+            eprintln!("Usage: iio-niri-toggle send <lock|unlock|status|toggle>");
             std::process::exit(1);
         }
     };
@@ -440,7 +440,7 @@ fn main() {
         Some("unlock") => cmd_send("unlock"),
         Some("status") => cmd_send("status"),
         _ => {
-            eprintln!("Usage: iio-niri-listener {{daemon|send <cmd>|lock|unlock|status}}");
+            eprintln!("Usage: iio-niri-toggle {{daemon|send <cmd>|lock|unlock|status}}");
             std::process::exit(1);
         }
     }

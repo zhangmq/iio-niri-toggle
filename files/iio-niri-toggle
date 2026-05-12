@@ -1,4 +1,0 @@
-#!/bin/bash
-# iio-niri-toggle — thin wrapper, delegates to Rust binary
-set -euo pipefail
-exec /usr/local/bin/iio-niri-listener "$@"
