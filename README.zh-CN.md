@@ -27,8 +27,8 @@
 ### 守护进程
 
 ```bash
-cd iio-niri-toggle && cargo build --release
-sudo bash files/install.sh
+cargo build --release
+sudo bash deploy/install.sh
 ```
 
 ### DMS 插件（可选）

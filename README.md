@@ -27,8 +27,8 @@ Auto-detects the internal display (eDP/DSI/LVDS) via sysfs at startup. Exits wit
 ### Daemon
 
 ```bash
-cd iio-niri-toggle && cargo build --release
-sudo bash files/install.sh
+cargo build --release
+sudo bash deploy/install.sh
 ```
 
 ### DMS Widget (Optional)

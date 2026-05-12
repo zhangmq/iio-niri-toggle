@@ -3,13 +3,13 @@
 set -euo pipefail
 
 FILES_DIR="$(cd "$(dirname "$0")" && pwd)"
-RELEASE_BIN="$FILES_DIR/../iio-niri-toggle/target/release/iio-niri-toggle"
+RELEASE_BIN="$FILES_DIR/../target/release/iio-niri-toggle"
 
 echo "=== iio-niri-toggle installer ==="
 
 if [ ! -f "$RELEASE_BIN" ]; then
     echo "→ Binary not found, building first (run outside sudo if rustup is not root)"
-    (cd "$FILES_DIR/../iio-niri-toggle" && cargo build --release)
+    (cd "$FILES_DIR/.." && cargo build --release)
 fi
 
 echo "→ Installing /usr/local/bin/iio-niri-toggle"
