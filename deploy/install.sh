@@ -18,9 +18,10 @@ install -m 755 "$RELEASE_BIN" /usr/local/bin/iio-niri-toggle
 echo "→ Installing /etc/systemd/system/iio-niri-toggle.service"
 install -m 644 "$FILES_DIR/iio-niri-toggle.service" /etc/systemd/system/iio-niri-toggle.service
 
-echo "→ Enabling iio-niri-toggle.service"
+echo "→ Restarting iio-niri-toggle.service"
 systemctl daemon-reload
 systemctl enable iio-niri-toggle.service
-systemctl restart iio-niri-toggle.service || true
+systemctl restart iio-niri-toggle.service
+systemctl status iio-niri-toggle.service --no-pager
 
 echo "=== Done ==="

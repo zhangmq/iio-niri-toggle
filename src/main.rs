@@ -169,7 +169,17 @@ fn setup_dbus() -> Result<(Connection, String), Box<dyn std::error::Error>> {
         "type='signal',interface='org.freedesktop.DBus.Properties',\
          path='/net/hadess/SensorProxy',sender='net.hadess.SensorProxy'",
     )?;
-    proxy.method_call::<(), _, _, _>(SENSOR_SRV, "ClaimAccelerometer", ())?;
+
+    for attempt in 1..=3 {
+        match proxy.method_call::<(), _, _, _>(SENSOR_SRV, "ClaimAccelerometer", ()) {
+            Ok(_) => break,
+            Err(_) if attempt < 3 => {
+                eprintln!("listener: ClaimAccelerometer attempt {}/3 failed, retrying in 2s...", attempt);
+                std::thread::sleep(Duration::from_secs(2));
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
 
     conn.process(Duration::from_millis(0))?;
     let orient: String = proxy.get(SENSOR_SRV, "AccelerometerOrientation")?;
@@ -283,20 +293,20 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
     init_state();
     eprintln!("listener: daemon started, monitor: {}", monitor());
 
-    // D-Bus (blocking once at startup)
-    let (conn, initial_orient) = setup_dbus()?;
-    eprintln!("listener: initial orientation: {}", initial_orient);
+    // IPC socket first — so clients can connect immediately
+    let ipc_listener = setup_ipc()?;
+    eprintln!("listener: IPC socket at {}", IPC_SOCK);
 
     // inotify
     let mut inotify = setup_inotify()?;
     let mut inotify_buf = [0u8; 4096];
 
-    // IPC
-    let ipc_listener = setup_ipc()?;
-    eprintln!("listener: IPC socket at {}", IPC_SOCK);
-
     let inotify_fd = inotify.as_raw_fd();
     let ipc_fd = ipc_listener.as_raw_fd();
+
+    // D-Bus (blocks up to 5s for ClaimAccelerometer)
+    let (conn, initial_orient) = setup_dbus()?;
+    eprintln!("listener: initial orientation: {}", initial_orient);
 
     // Orientation: only re-queried when PropertiesChanged signal arrives.
     let orient_pending = Arc::new(AtomicBool::new(false));

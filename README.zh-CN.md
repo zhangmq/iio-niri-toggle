@@ -72,6 +72,10 @@ ln -s "$PWD" ~/.config/DankMaterialShell/plugins/iio-niri-toggle
 
 状态持久化到 `/var/lib/iio-niri-toggle/state.json`。apply 块为只读操作（不写 state.json）。
 
+## 已知限制
+
+- **DMS 控制中心插件懒加载**：如果只在控制中心启用磁贴（DankBar 面板未启用），插件 QML 实例在控制中心首次弹出前不会激活。此时通过 `iio-niri-toggle lock/unlock` CLI 操作仍正常，但 Toast 通知不会显示。这是 DMS/Quickshell 的行为——无面板 pille 的插件需等到控制中心渲染后才会实例化。
+
 ## 协作
 
 本文档为个人自用工具，暂无协作开发计划。欢迎 fork 后自行修改适配。

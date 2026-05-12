@@ -72,6 +72,10 @@ Two modes:
 
 State is persisted to `/var/lib/iio-niri-toggle/state.json`. The apply block is read-only (never writes state.json).
 
+## Known Limitations
+
+- **DMS control center widget lazy-loading**: If only the control center widget is enabled (no DankBar pill), the QML plugin instance is not active until the control center is opened at least once. During this time, `iio-niri-toggle lock/unlock` CLI commands will work but the toast notification will not show. This is a DMS/Quickshell behavior — plugins without a bar pill are not instantiated until their control center slot is rendered.
+
 ## Collaboration
 
 This is a personal tool. There is no plan for collaborative development. You are welcome to fork and adapt it to your needs.
