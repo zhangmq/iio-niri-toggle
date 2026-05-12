@@ -54,11 +54,11 @@ fn read_config() -> Config {
     }
 }
 
-fn write_state(auto: bool, monitor: &str) {
+fn write_state(auto: bool, locked: Option<&str>, monitor: &str) {
     let _ = std::fs::create_dir_all(STATE_DIR);
     let d = serde_json::json!({
         "auto_rotate": auto,
-        "locked_transform": null,
+        "locked_transform": locked,
         "monitor": monitor,
     });
     if let Ok(s) = serde_json::to_string(&d) {
@@ -90,6 +90,22 @@ fn find_niri_socket() -> Option<String> {
         .collect();
     socks.sort();
     socks.into_iter().next().map(|p| p.to_string_lossy().to_string())
+}
+
+fn current_transform() -> Option<String> {
+    let sock = find_niri_socket()?;
+    let output = Command::new("niri")
+        .args(["msg", "--json", "outputs"])
+        .env("NIRI_SOCKET", &sock)
+        .output()
+        .ok()?;
+    if !output.status.success() { return None; }
+    let v: Value = serde_json::from_slice(&output.stdout).ok()?;
+    let t = v.get(MONITOR)?
+        .get("logical")?
+        .get("transform")?
+        .as_str()?;
+    Some(t.to_lowercase())
 }
 
 fn set_transform(tr: &str) -> bool {
@@ -125,12 +141,6 @@ fn orientation_to_transform(orient: &str) -> &str {
         "right-up" => "270",
         _ => "",
     }
-}
-
-fn apply(cfg: &Config, orient: &str) -> bool {
-    let tr = if cfg.auto_rotate { orientation_to_transform(orient) } else { &cfg.locked_transform };
-    if tr.is_empty() { return false; }
-    set_transform(tr)
 }
 
 // ── D-Bus ───────────────────────────────────────────────────────────────────
@@ -218,10 +228,14 @@ fn handle_ipc_client(mut stream: UnixStream) {
     let cmd = req.get("command").and_then(|x| x.as_str()).unwrap_or("");
 
     let resp = match cmd {
-        "lock" | "unlock" => {
-            let auto = cmd == "unlock";
-            write_state(auto, MONITOR);
-            serde_json::json!({"ok": true, "auto_rotate": auto})
+        "lock" => {
+            let locked = current_transform().unwrap_or_else(|| "normal".to_string());
+            write_state(false, Some(&locked), MONITOR);
+            serde_json::json!({"ok": true, "auto_rotate": false})
+        }
+        "unlock" => {
+            write_state(true, None, MONITOR);
+            serde_json::json!({"ok": true, "auto_rotate": true})
         }
         "status" => {
             let cfg = read_config();
@@ -281,10 +295,6 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
             true
         })?;
     }
-
-    // Initial apply
-    let cfg = read_config();
-    apply(&cfg, &cached_orient);
 
     // Event loop: poll inotify + IPC fds, D-Bus via short-timeout fallback
     let mut sock_cache: Option<String> = None;
@@ -360,10 +370,24 @@ fn cmd_daemon() -> Result<(), Box<dyn std::error::Error>> {
         // ── Apply ─────────────────────────────────────────────────
         if need_apply {
             let cfg = read_config();
-            let tr = if cfg.auto_rotate { orientation_to_transform(&cached_orient) } else { &cfg.locked_transform };
-            if !tr.is_empty() && set_transform(tr) {
-                need_apply = false;
-            } else if sock_cache.is_none() {
+            if cfg.auto_rotate {
+                let tr = orientation_to_transform(&cached_orient);
+                if !tr.is_empty() && set_transform(tr) {
+                    need_apply = false;
+                }
+            } else {
+                let tr = if cfg.locked_transform.is_empty() {
+                    // lock with no saved transform: capture current, then persist
+                    current_transform().unwrap_or_else(|| "normal".to_string())
+                } else {
+                    cfg.locked_transform.clone()
+                };
+                if set_transform(&tr) {
+                    write_state(false, Some(&tr), MONITOR);
+                    need_apply = false;
+                }
+            }
+            if need_apply && sock_cache.is_none() {
                 need_apply = false; // no socket, stop retrying until one appears
             }
             // socket exists but apply failed (niri not ready): retry on next iteration
