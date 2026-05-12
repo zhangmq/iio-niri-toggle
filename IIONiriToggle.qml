@@ -10,30 +10,47 @@ PluginComponent {
     id: root
     property bool autoRotateEnabled: true
 
-    Process {
-        id: stateReader
-        command: ["tail", "-n", "1", "-f", "/var/lib/iio-niri-toggle/state.json"]
-        running: true
-        stdout: SplitParser {
-            onRead: {
-                try {
-                    var s = JSON.parse(data);
-                    root.autoRotateEnabled = s.auto_rotate;
-                } catch (e) {}
+    property string ccWidgetIcon: autoRotateEnabled ? "screen_rotation" : "screen_lock_rotation"
+    property string ccWidgetPrimaryText: "屏幕旋转"
+    property string ccWidgetSecondaryText: autoRotateEnabled ? "自动旋转" : "已锁定"
+    property bool ccWidgetIsActive: autoRotateEnabled
+
+    function updateState(content) {
+        try {
+            var s = JSON.parse(content);
+            if (root.autoRotateEnabled !== s.auto_rotate) {
+                if (s.auto_rotate) {
+                    ToastService.showInfo("屏幕自动旋转已开启");
+                } else {
+                    ToastService.showInfo("屏幕方向已锁定");
+                }
             }
+            root.autoRotateEnabled = s.auto_rotate;
+        } catch (e) {}
+    }
+
+    FileView {
+        id: stateFile
+        path: "/var/lib/iio-niri-toggle/state.json"
+        preload: true
+        blockLoading: true
+        watchChanges: true
+        onLoaded: root.updateState(stateFile.text())
+        onFileChanged: {
+            stateFile.reload()
+            root.updateState(stateFile.text())
         }
     }
 
     function toggleRotation() {
-        root.autoRotateEnabled = !root.autoRotateEnabled;
         if (root.autoRotateEnabled) {
-            Quickshell.execDetached(["/usr/local/bin/iio-niri-toggle", "unlock"]);
-            ToastService.showInfo("屏幕自动旋转已开启");
-        } else {
             Quickshell.execDetached(["/usr/local/bin/iio-niri-toggle", "lock"]);
-            ToastService.showInfo("屏幕方向已锁定");
+        } else {
+            Quickshell.execDetached(["/usr/local/bin/iio-niri-toggle", "unlock"]);
         }
     }
+
+    onCcWidgetToggled: toggleRotation()
 
     horizontalBarPill: Component {
         Row {
