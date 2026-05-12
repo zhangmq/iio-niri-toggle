@@ -31,15 +31,18 @@ cd iio-niri-toggle && cargo build --release
 sudo bash files/install.sh
 ```
 
-### DMS Panel Widget (Optional)
+### DMS Widget (Optional)
 
 ```bash
 ln -s "$PWD" ~/.config/DankMaterialShell/plugins/iio-niri-toggle
 ```
 
-Then add `iio-niri-toggle` to your DMS panel configuration.
+Then add `iio-niri-toggle` to your DMS panel bar configuration.
 
-The QML plugin (`plugin.json` + `IIONiriToggle.qml`) provides a panel button to toggle auto-rotate on/off. Place the project directory under your Quickshell plugin path.
+The widget appears in two places:
+
+- **DankBar** — click to toggle auto-rotate on/off
+- **Control Center** — open the control center, enter edit mode (long press or edit button), find "屏幕旋转" in the widget list, and add it to the grid. Click the tile to toggle.
 
 ## Usage
 

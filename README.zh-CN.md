@@ -31,7 +31,7 @@ cd iio-niri-toggle && cargo build --release
 sudo bash files/install.sh
 ```
 
-### DMS 面板插件（可选）
+### DMS 插件（可选）
 
 ```bash
 ln -s "$PWD" ~/.config/DankMaterialShell/plugins/iio-niri-toggle
@@ -39,7 +39,10 @@ ln -s "$PWD" ~/.config/DankMaterialShell/plugins/iio-niri-toggle
 
 然后在 DMS 面板配置中添加 `iio-niri-toggle` 插件。
 
-QML 插件（`plugin.json` + `IIONiriToggle.qml`）提供面板按钮一键切换自动旋转。将项目目录放入 Quickshell 插件路径即可使用。
+插件出现在两个位置：
+
+- **DankBar（面板）** — 点击切换自动旋转开关
+- **控制中心** — 打开控制中心，进入编辑模式（长按或点击编辑按钮），在可用组件列表中找到"屏幕旋转"磁贴并添加。点击磁贴切换。
 
 ## 使用
 
