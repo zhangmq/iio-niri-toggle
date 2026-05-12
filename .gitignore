@@ -1,3 +1,3 @@
-files/iio-niri-listener
+iio-niri-toggle/target/
 files/__pycache__/
-listener/target/
+files/iio-niri-listener
