@@ -5,25 +5,25 @@ import qs.Common
 import qs.Services
 import qs.Widgets
 import qs.Modules.Plugins
+import "strings.js" as Strings
 
 PluginComponent {
     id: root
     property bool autoRotateEnabled: true
 
+    // Dank's own language setting (Settings > Language), same resolution I18n uses internally
+    readonly property string _lang: I18n._resolvedLocale.split(/[_-]/)[0]
+
     property string ccWidgetIcon: autoRotateEnabled ? "screen_rotation" : "screen_lock_rotation"
-    property string ccWidgetPrimaryText: "屏幕旋转"
-    property string ccWidgetSecondaryText: autoRotateEnabled ? "自动旋转" : "已锁定"
+    property string ccWidgetPrimaryText: Strings.translate(root._lang, "ccWidgetPrimaryText")
+    property string ccWidgetSecondaryText: Strings.translate(root._lang, autoRotateEnabled ? "secondaryAuto" : "secondaryLocked")
     property bool ccWidgetIsActive: autoRotateEnabled
 
     function updateState(content) {
         try {
             var s = JSON.parse(content);
             if (root.autoRotateEnabled !== s.auto_rotate) {
-                if (s.auto_rotate) {
-                    ToastService.showInfo("屏幕自动旋转已开启");
-                } else {
-                    ToastService.showInfo("屏幕方向已锁定");
-                }
+                ToastService.showInfo(Strings.translate(root._lang, s.auto_rotate ? "toastAutoRotateEnabled" : "toastLocked"));
             }
             root.autoRotateEnabled = s.auto_rotate;
         } catch (e) {}
