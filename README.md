@@ -24,7 +24,16 @@ Auto-detects the internal display (eDP/DSI/LVDS) via sysfs at startup. Exits wit
 
 ## Installation
 
-### Daemon
+### Method 1: Release install script (recommended)
+
+```bash
+curl -LO https://raw.githubusercontent.com/zhangmq/iio-niri-toggle/main/deploy/install-release.sh
+bash install-release.sh        # optional version argument; defaults to the latest release
+```
+
+Downloads the latest release, verifies SHA256SUMS, extracts and installs (asks where to put the DMS widget).
+
+### Method 2: Manual install (from the repo)
 
 ```bash
 cargo build --release
@@ -54,6 +63,15 @@ The widget appears in two places:
 - **Control Center** — open the control center, click the edit button to enter edit mode, find "屏幕旋转" in the widget list, and add it to the grid. Click the tile to toggle.
 
 Widget labels follow the system language (English / 简体中文).
+
+## Uninstallation
+
+```bash
+curl -LO https://raw.githubusercontent.com/zhangmq/iio-niri-toggle/main/deploy/uninstall.sh
+bash uninstall.sh        # add -y to skip the confirmation
+```
+
+Removes the systemd service, binary, state, and the DMS widget (system- and user-level).
 
 ## Usage
 
@@ -96,7 +114,7 @@ Tag a version to build and publish automatically:
 git tag v1.0.1 && git push origin v1.0.1
 ```
 
-GitHub Actions (archlinux container) packages `iio-niri-toggle-<version>-x86_64-unknown-linux-gnu.tar.gz` (binary, systemd unit, DMS plugin, install script and docs) plus a `SHA256SUMS` checksum and attaches them to a GitHub Release.
+GitHub Actions (archlinux container) packages `iio-niri-toggle-<version>-x86_64-unknown-linux-gnu.tar.gz` (binary, systemd unit, install/uninstall scripts, DMS plugin and docs) plus a `SHA256SUMS` checksum and attaches them to a GitHub Release.
 
 ### Install from a Release
 

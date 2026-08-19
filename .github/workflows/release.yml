@@ -34,6 +34,8 @@ jobs:
           cp target/release/iio-niri-toggle "dist/${PKG}/iio-niri-toggle"
           cp deploy/iio-niri-toggle.service "dist/${PKG}/iio-niri-toggle.service"
           cp deploy/install.sh "dist/${PKG}/install.sh"
+          cp deploy/install-release.sh "dist/${PKG}/install-release.sh"
+          cp deploy/uninstall.sh "dist/${PKG}/uninstall.sh"
           cp plugin/* "dist/${PKG}/plugin/"
           cp README.md README.zh-CN.md LICENSE "dist/${PKG}/"
           tar -C dist -czf "dist/${PKG}.tar.gz" "$PKG"
