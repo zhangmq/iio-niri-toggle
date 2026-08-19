@@ -33,8 +33,17 @@ sudo bash deploy/install.sh
 
 ### DMS Widget (Optional)
 
+`install.sh` installs the widget too and asks for the location:
+- **User-level** (default) — `~/.config/DankMaterialShell/plugins/iio-niri-toggle`
+- **System-level** — `/etc/xdg/quickshell/dms-plugins/iio-niri-toggle`
+
+Manual install:
+
 ```bash
-ln -s "$PWD" ~/.config/DankMaterialShell/plugins/iio-niri-toggle
+# user-level
+cp -r plugin ~/.config/DankMaterialShell/plugins/iio-niri-toggle
+# system-level
+sudo cp -r plugin /etc/xdg/quickshell/dms-plugins/iio-niri-toggle
 ```
 
 Then add `iio-niri-toggle` to your DMS panel bar configuration.

@@ -33,8 +33,17 @@ sudo bash deploy/install.sh
 
 ### DMS 插件（可选）
 
+`install.sh` 会一并安装插件，安装时询问位置：
+- **用户级**（默认）— `~/.config/DankMaterialShell/plugins/iio-niri-toggle`
+- **系统级** — `/etc/xdg/quickshell/dms-plugins/iio-niri-toggle`
+
+手动安装：
+
 ```bash
-ln -s "$PWD" ~/.config/DankMaterialShell/plugins/iio-niri-toggle
+# 用户级
+cp -r plugin ~/.config/DankMaterialShell/plugins/iio-niri-toggle
+# 系统级
+sudo cp -r plugin /etc/xdg/quickshell/dms-plugins/iio-niri-toggle
 ```
 
 然后在 DMS 面板配置中添加 `iio-niri-toggle` 插件。
