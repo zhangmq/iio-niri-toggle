@@ -44,6 +44,8 @@ The widget appears in two places:
 - **DankBar** — click to toggle auto-rotate on/off
 - **Control Center** — open the control center, click the edit button to enter edit mode, find "屏幕旋转" in the widget list, and add it to the grid. Click the tile to toggle.
 
+Widget labels follow the system language (English / 简体中文).
+
 ## Usage
 
 | Command | Description |
@@ -63,6 +65,7 @@ Single Rust binary with a poll-based event loop (200ms timeout), integrating in 
 - **IPC** — Unix domain socket for lock/unlock/status commands
 - **niri CLI** — applies transforms via `niri msg output <monitor> transform <tr>`
 - **Health check** — re-queries orientation every 30s as fallback for missed signals
+- **systemd hardening** — the daemon runs as root (it must reach the logged-in user's niri socket under `/run/user/<uid>`); the unit ships with sandbox options (`ProtectSystem`, `PrivateNetwork`, capability stripping) to keep privileges minimal
 
 ### State Machine
 
@@ -75,6 +78,18 @@ State is persisted to `/var/lib/iio-niri-toggle/state.json`. The apply block is 
 ## Known Limitations
 
 - **DMS control center widget lazy-loading**: If only the control center widget is enabled (no DankBar pill), the QML plugin instance is not active until the control center is opened at least once. During this time, `iio-niri-toggle lock/unlock` CLI commands will work but the toast notification will not show. This is a DMS/Quickshell behavior — plugins without a bar pill are not instantiated until their control center slot is rendered.
+
+## Releases
+
+Tag a version to build and publish a release binary automatically:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+GitHub Actions (archlinux container) builds `iio-niri-toggle-<version>-x86_64-unknown-linux-gnu` plus a `SHA256SUMS` checksum and attaches them to a GitHub Release. No manual packaging needed.
+
+Runtime dependencies: glibc and libdbus-1 (present by default on Arch-based systems).
 
 ## Collaboration
 
