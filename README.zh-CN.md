@@ -81,13 +81,27 @@ ln -s "$PWD" ~/.config/DankMaterialShell/plugins/iio-niri-toggle
 
 ## 发布 Release
 
-打版本标签即自动构建并发布二进制：
+打版本标签即自动构建并发布：
 
 ```bash
-git tag v1.0.0 && git push origin v1.0.0
+git tag v1.0.1 && git push origin v1.0.1
 ```
 
-GitHub Actions（archlinux 容器）构建 `iio-niri-toggle-<版本>-x86_64-unknown-linux-gnu` 并附带 `SHA256SUMS` 校验和，自动创建 GitHub Release。无需手动打包。
+GitHub Actions（archlinux 容器）打包 `iio-niri-toggle-<版本>-x86_64-unknown-linux-gnu.tar.gz`（含二进制、systemd unit、DMS 插件、安装脚本与文档）并附带 `SHA256SUMS` 校验和，自动创建 GitHub Release。
+
+### 从 Release 安装
+
+```bash
+# 下载并校验
+curl -LO https://github.com/zhangmq/iio-niri-toggle/releases/download/v1.0.1/iio-niri-toggle-1.0.1-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/zhangmq/iio-niri-toggle/releases/download/v1.0.1/SHA256SUMS
+sha256sum -c SHA256SUMS
+
+# 解压并安装
+tar xzf iio-niri-toggle-1.0.1-x86_64-unknown-linux-gnu.tar.gz
+cd iio-niri-toggle-1.0.1-x86_64-unknown-linux-gnu
+sudo bash install.sh
+```
 
 运行时依赖：glibc、libdbus-1（Arch 系系统默认自带）。
 

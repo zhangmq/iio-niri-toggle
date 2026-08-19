@@ -81,13 +81,27 @@ State is persisted to `/var/lib/iio-niri-toggle/state.json`. The apply block is 
 
 ## Releases
 
-Tag a version to build and publish a release binary automatically:
+Tag a version to build and publish automatically:
 
 ```bash
-git tag v1.0.0 && git push origin v1.0.0
+git tag v1.0.1 && git push origin v1.0.1
 ```
 
-GitHub Actions (archlinux container) builds `iio-niri-toggle-<version>-x86_64-unknown-linux-gnu` plus a `SHA256SUMS` checksum and attaches them to a GitHub Release. No manual packaging needed.
+GitHub Actions (archlinux container) packages `iio-niri-toggle-<version>-x86_64-unknown-linux-gnu.tar.gz` (binary, systemd unit, DMS plugin, install script and docs) plus a `SHA256SUMS` checksum and attaches them to a GitHub Release.
+
+### Install from a Release
+
+```bash
+# Download and verify
+curl -LO https://github.com/zhangmq/iio-niri-toggle/releases/download/v1.0.1/iio-niri-toggle-1.0.1-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/zhangmq/iio-niri-toggle/releases/download/v1.0.1/SHA256SUMS
+sha256sum -c SHA256SUMS
+
+# Extract and install
+tar xzf iio-niri-toggle-1.0.1-x86_64-unknown-linux-gnu.tar.gz
+cd iio-niri-toggle-1.0.1-x86_64-unknown-linux-gnu
+sudo bash install.sh
+```
 
 Runtime dependencies: glibc and libdbus-1 (present by default on Arch-based systems).
 
