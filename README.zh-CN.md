@@ -24,7 +24,16 @@
 
 ## 安装
 
-### 守护进程
+### 方式一：Release 安装脚本（推荐）
+
+```bash
+curl -LO https://raw.githubusercontent.com/zhangmq/iio-niri-toggle/main/deploy/install-release.sh
+bash install-release.sh        # 可加版本号参数，默认安装最新 release
+```
+
+自动下载最新 release、校验 SHA256SUMS、解压并安装（安装时会询问 DMS 插件安装位置）。
+
+### 方式二：手动安装（从仓库）
 
 ```bash
 cargo build --release
@@ -54,6 +63,15 @@ sudo cp -r plugin /etc/xdg/quickshell/dms-plugins/iio-niri-toggle
 - **控制中心** — 打开控制中心，点击编辑按钮进入编辑模式，在可用组件列表中找到"屏幕旋转"磁贴并添加。点击磁贴切换。
 
 插件文案跟随系统语言（简体中文 / English）。
+
+## 卸载
+
+```bash
+curl -LO https://raw.githubusercontent.com/zhangmq/iio-niri-toggle/main/deploy/uninstall.sh
+bash uninstall.sh        # 加 -y 跳过确认
+```
+
+移除 systemd 服务、二进制、状态与 DMS 插件（系统级 + 用户级）。
 
 ## 使用
 
@@ -96,7 +114,7 @@ sudo cp -r plugin /etc/xdg/quickshell/dms-plugins/iio-niri-toggle
 git tag v1.0.1 && git push origin v1.0.1
 ```
 
-GitHub Actions（archlinux 容器）打包 `iio-niri-toggle-<版本>-x86_64-unknown-linux-gnu.tar.gz`（含二进制、systemd unit、DMS 插件、安装脚本与文档）并附带 `SHA256SUMS` 校验和，自动创建 GitHub Release。
+GitHub Actions（archlinux 容器）打包 `iio-niri-toggle-<版本>-x86_64-unknown-linux-gnu.tar.gz`（含二进制、systemd unit、安装/卸载脚本、DMS 插件与文档）并附带 `SHA256SUMS` 校验和，自动创建 GitHub Release。
 
 ### 从 Release 安装
 
