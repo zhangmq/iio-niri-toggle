@@ -16,6 +16,7 @@ Auto-detects the internal display (eDP/DSI/LVDS) via sysfs at startup. Exits wit
 - [iio-sensor-proxy](https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/) — hardware sensor daemon
 - [DankMaterialShell](https://danklinux.com/) + Quickshell — panel widget (optional)
 - systemd — service management
+- glibc, libdbus-1 — runtime dependencies of the release binary (present by default on Arch-based systems)
 
 ## Build Dependencies
 
@@ -105,32 +106,6 @@ State is persisted to `/var/lib/iio-niri-toggle/state.json`. The apply block is 
 ## Known Limitations
 
 - **DMS control center widget lazy-loading**: If only the control center widget is enabled (no DankBar pill), the QML plugin instance is not active until the control center is opened at least once. During this time, `iio-niri-toggle lock/unlock` CLI commands will work but the toast notification will not show. This is a DMS/Quickshell behavior — plugins without a bar pill are not instantiated until their control center slot is rendered.
-
-## Releases
-
-Tag a version to build and publish automatically:
-
-```bash
-git tag v1.0.1 && git push origin v1.0.1
-```
-
-GitHub Actions (archlinux container) packages `iio-niri-toggle-<version>-x86_64-unknown-linux-gnu.tar.gz` (binary, systemd unit, install/uninstall scripts, DMS plugin and docs) plus a `SHA256SUMS` checksum and attaches them to a GitHub Release.
-
-### Install from a Release
-
-```bash
-# Download and verify
-curl -LO https://github.com/zhangmq/iio-niri-toggle/releases/download/v1.0.1/iio-niri-toggle-1.0.1-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/zhangmq/iio-niri-toggle/releases/download/v1.0.1/SHA256SUMS
-sha256sum -c SHA256SUMS
-
-# Extract and install
-tar xzf iio-niri-toggle-1.0.1-x86_64-unknown-linux-gnu.tar.gz
-cd iio-niri-toggle-1.0.1-x86_64-unknown-linux-gnu
-sudo bash install.sh
-```
-
-Runtime dependencies: glibc and libdbus-1 (present by default on Arch-based systems).
 
 ## Collaboration
 
