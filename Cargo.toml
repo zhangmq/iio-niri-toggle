@@ -1,6 +1,6 @@
 [package]
 name = "iio-niri-toggle"
-version = "1.0.1"
+version = "1.0.4"
 edition = "2021"
 
 [dependencies]
