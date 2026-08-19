@@ -2,7 +2,7 @@
   "id": "iio-niri-toggle",
   "name": "IIONiriToggle",
   "description": "Screen rotation toggle (auto-rotate / lock)",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "author": "zmq",
   "type": "widget",
   "capabilities": ["dankbar-widget", "control-center"],
