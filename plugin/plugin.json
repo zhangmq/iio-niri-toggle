@@ -5,6 +5,8 @@
   "version": "1.0.0",
   "author": "zmq",
   "type": "widget",
+  "capabilities": ["dankbar-widget", "control-center"],
+  "permissions": ["process"],
   "component": "./IIONiriToggle.qml",
   "icon": "screen_rotation"
 }
