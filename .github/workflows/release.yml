@@ -1,0 +1,39 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm
+          # `rust` replaces the former separate `cargo` package on Arch
+          pacman -S --noconfirm --needed base-devel pkgconf rust dbus
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Package release assets
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          cp target/release/iio-niri-toggle "dist/iio-niri-toggle-${VERSION}-x86_64-unknown-linux-gnu"
+          (cd dist && sha256sum iio-niri-toggle-* > SHA256SUMS)
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
