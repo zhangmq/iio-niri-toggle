@@ -11,8 +11,10 @@ PluginComponent {
     id: root
     property bool autoRotateEnabled: true
 
-    // Dank's own language setting (Settings > Language), same resolution I18n uses internally
-    readonly property string _lang: I18n._resolvedLocale.split(/[_-]/)[0]
+    // User language via public API — same logic as DMS I18n's internal _rawLocale
+    // (SessionData.locale, falling back to Qt.locale()). Avoids depending on the
+    // private _resolvedLocale, whose name/semantics have already changed across DMS versions.
+    readonly property string _lang: (SessionData.locale === "" ? Qt.locale().name : SessionData.locale).split(/[_-]/)[0]
 
     property string ccWidgetIcon: autoRotateEnabled ? "screen_rotation" : "screen_lock_rotation"
     property string ccWidgetPrimaryText: Strings.translate(root._lang, "ccWidgetPrimaryText")
