@@ -9,5 +9,27 @@ ExecStart=/usr/local/bin/iio-niri-toggle daemon
 Restart=on-failure
 StateDirectory=iio-niri-toggle
 
+# ── Sandbox hardening ──────────────────────────────────────────────────────
+# The daemon must run as root (cross-user niri IPC via /run/user/<uid>, which
+# is 0700 and only root can enter), so this shrinks its damage radius instead:
+#   * /run must stay writable (IPC socket bind + niri socket connect) →
+#     ProtectSystem=yes, NOT =strict (strict remounts /run read-only, which
+#     breaks both — verified empirically)
+#   * /run/user must stay reachable (niri socket discovery) → no ProtectHome
+#     (ProtectHome=true makes /run/user inaccessible — verified empirically)
+#   * capabilities kept: entering 0700 /run/user/<uid> requires CAP_DAC_OVERRIDE
+ProtectSystem=yes
+PrivateTmp=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectClock=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+MemoryDenyWriteExecute=true
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+
 [Install]
 WantedBy=multi-user.target
