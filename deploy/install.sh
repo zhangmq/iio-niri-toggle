@@ -30,11 +30,44 @@ systemctl enable iio-niri-toggle.service
 systemctl restart iio-niri-toggle.service
 systemctl status iio-niri-toggle.service --no-pager
 
+# DMS plugin (optional): only when DMS is actually installed on this system.
+# Detection: DMS module dir (installed shell) or the user's DMS config dir.
 if [ -d "$FILES_DIR/plugin" ]; then
-    echo
-    echo "→ DMS plugin found at $FILES_DIR/plugin (optional)."
-    echo "  To enable the panel/control-center widget, link it for your user:"
-    echo "  ln -s \"$FILES_DIR/plugin\" ~/.config/DankMaterialShell/plugins/iio-niri-toggle"
+    TARGET_USER="${SUDO_USER:-${USER:-root}}"
+    USER_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
+
+    if [ -d /usr/share/quickshell/dms ] || [ -d "$USER_HOME/.config/DankMaterialShell" ]; then
+        MODE="user"
+        if [ "$TARGET_USER" = "root" ]; then
+            MODE="system"   # no user context — system-level only
+        elif [ -t 0 ]; then
+            echo
+            read -r -p "DMS 插件安装位置? [u] 用户级（默认） / [s] 系统级: " REPLY || true
+            case "$REPLY" in
+                s|S) MODE="system" ;;
+            esac
+        fi
+
+        if [ "$MODE" = "system" ]; then
+            PLUGIN_DEST="/etc/xdg/quickshell/dms-plugins/iio-niri-toggle"
+        else
+            PLUGIN_DEST="$USER_HOME/.config/DankMaterialShell/plugins/iio-niri-toggle"
+        fi
+
+        echo "→ Installing DMS plugin to $PLUGIN_DEST"
+        rm -rf "$PLUGIN_DEST"
+        mkdir -p "$(dirname "$PLUGIN_DEST")"
+        cp -r "$FILES_DIR/plugin/." "$PLUGIN_DEST/"
+        if [ "$MODE" = "system" ]; then
+            chmod -R a+rX "$PLUGIN_DEST"
+        else
+            chown -R "$TARGET_USER:" "$PLUGIN_DEST"
+            chmod -R u+rwX,go+rX "$PLUGIN_DEST"
+        fi
+        echo "  (DMS 会自动重载插件；若未出现请重启 DMS shell)"
+    else
+        echo "→ DMS 未安装，跳过 DMS 插件安装（仅安装守护进程）"
+    fi
 fi
 
 echo "=== Done ==="
