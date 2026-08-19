@@ -17,17 +17,29 @@ StateDirectory=iio-niri-toggle
 #     breaks both — verified empirically)
 #   * /run/user must stay reachable (niri socket discovery) → no ProtectHome
 #     (ProtectHome=true makes /run/user inaccessible — verified empirically)
-#   * capabilities kept: entering 0700 /run/user/<uid> requires CAP_DAC_OVERRIDE
+#   * capabilities are stripped to the two DAC caps actually required:
+#     CAP_DAC_READ_SEARCH → traverse/read 0700 /run/user/<uid> for socket discovery
+#     CAP_DAC_OVERRIDE    → connect to the niri socket inside it (MAY_WRITE check)
+#     Everything else (bind /var/run socket, write /var/lib, D-Bus, inotify,
+#     sysfs) works as the directory/file owner (uid 0) with no capabilities.
 ProtectSystem=yes
 PrivateTmp=true
+PrivateDevices=true
+PrivateNetwork=true
 NoNewPrivileges=true
 RestrictSUIDSGID=true
+RestrictNamespaces=true
 ProtectControlGroups=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
+ProtectKernelLogs=true
 ProtectClock=true
+ProtectHostname=true
+LockPersonality=true
 RestrictRealtime=true
 RestrictAddressFamilies=AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
 MemoryDenyWriteExecute=true
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 
